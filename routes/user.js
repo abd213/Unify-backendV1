@@ -1,17 +1,24 @@
 const express = require("express");
 const router = express.Router();
+const fileUpload = require("express-fileupload");
 const uid2 = require("uid2");
 const SHA256 = require("crypto-js/sha256");
 const encBase64 = require("crypto-js/enc-base64");
+const cloudinary = require("cloudinary").v2;
 
 const User = require("../models/User");
 
+const convertToBase64 = (file) => {
+  return `data:${file.mimetype};base64,${file.data.toString("base64")}`;
+};
+
 // Route to create a user
-router.post("/user/signup", async (req, res) => {
+router.post("/user/signup", fileUpload(), async (req, res) => {
   try {
     console.log(req.body);
     const { username, email, password, newsletter, birthDate, team, bio } =
       req.body;
+    const { avatar } = req.files;
     if (username) {
       // We check if the email does not exist in the 'user' collection of the database
       const user = await User.findOne({ email: email });
@@ -35,12 +42,20 @@ router.post("/user/signup", async (req, res) => {
           salt: salt,
           hash: hash,
         });
+        if (req.files?.avatar) {
+          const result = await cloudinary.uploader.upload(
+            convertToBase64(avatar)
+          );
+          console.log(result);
+          newUser.account.avatar = result;
+        }
         await newUser.save(); // save a new User
         // We send back everything to the user except the hash and salt
         res.json({
           _id: newUser._id,
           token: newUser.token,
           account: newUser.account,
+          avatar: newUser.account.avatar,
           team: newUser.team,
           birthDate: newUser.birthDate,
         });
@@ -115,16 +130,17 @@ router.get("/api/user/:id", async (req, res) => {
 });
 
 // Route to modify a user by passing the ID as params
-router.put("/api/user/:id", async (req, res) => {
+router.put("/api/user/:id", fileUpload(), async (req, res) => {
   try {
     const id = req.params.id;
     const { username, email, password, newsletter, birthDate, team, bio } =
       req.body;
+    const { avatar } = req.files;
     if (id) {
       const userToUpdate = await User.findById(id);
       if (userToUpdate) {
         if (username) {
-          userToUpdate.username = username;
+          userToUpdate.account.username = username;
         }
         if (newsletter) {
           userToUpdate.newsletter = newsletter;
@@ -137,6 +153,13 @@ router.put("/api/user/:id", async (req, res) => {
         }
         if (bio) {
           userToUpdate.bio = bio;
+        }
+        if (req.files?.avatar) {
+          const result = await cloudinary.uploader.upload(
+            convertToBase64(avatar)
+          );
+          // console.log(result);
+          userToUpdate.account.avatar = result;
         }
         await userToUpdate.save();
         res.status(200).json({ userToUpdate });

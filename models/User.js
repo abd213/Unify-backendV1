@@ -13,7 +13,9 @@ const User = mongoose.model("User", {
       required: true,
       type: String,
     },
-    avatar: Object,
+    avatar: {
+      type: Object,
+    },
   },
   birthDate: Date,
   team: String,
